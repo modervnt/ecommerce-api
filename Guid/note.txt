@@ -94,7 +94,7 @@ Bonjour etbienvenu sur mon tuto ou nous allons apprendre ensemble a cree une API
             UpdatedAt time.Time
             DeletedAt gorm.DeletedAt `gorm:"index"`
             }
-    -Les routes pour la creation et la connexion d'un user des users:
+    -creation d'un user des users:
         -J'ai implemente une interface qui s'appelle UserStore dans le types.go
             --Une interface est une collection de fonction. C'est comme une structure de donnee mais uniquement pour stocker des fonctions
         -Je cree un dossier User qui doit contenir store.go et routes.go. Le fichier concerne toutes les fonctions qui gere la connexion avec la base de donnee 
@@ -231,6 +231,79 @@ Bonjour etbienvenu sur mon tuto ou nous allons apprendre ensemble a cree une API
 	        r.Run(":8080")
             Elle cree une nouvelles instances de Store (db) relie la route qui va avec et la fonction qui la gere. Grace a gorm la 
             connexion avec les databases sont faites automatiquement
+
+    -Login d'un user 
+
+    
+    -Authentification:
+        Comme nous ne somme ni des voleurs ni des delinquants, nous allons Hasher les users password pour qu'on ne les voient pas.
+        Le Hashage se fait grace au packet "golang.org/x/crypto/bcrypt" de golang
+        -Si il n'est pas installer il faut le get et cree une fonction de Hashage
+        -Cree un package auth pour y mettre tout ce qui concerne l'Authentification
+
+
+    -Les validations des donnes:
+        Si j'implementais une API depuis scrach je ferais la validation en utilisant le package validator fourni par golang. Mais dans 
+        notre cas, Gin-Gonic et Gorm fournissent des validations internes des données.
+            type User struct {
+        gorm.Model
+        FirstName string `json:"firstName" gorm:"not null; size:50"`
+        LastName  string `json:"lastName" gorm:"not null;size:50"`
+        Email     string `json:"email" gorm:"not null; unique;type:varchar(100)"`
+        Password  string `json:"password" gorm:"not null;size:100"`
+        }
+        La je viens de faire une validation des données avec ces parametres que j'ai passe entre (``).
+
+    -Commande sql via gorm:
+    +--------------------------+--------------------------------------------------+---------------------------------------------+
+    | Méthode GORM             | Description                                      | Équivalent SQL                              |
+    +--------------------------+--------------------------------------------------+---------------------------------------------+
+    | db.Create(&obj)          | Insère une nouvelle ligne dans la table.         | INSERT INTO table (...) VALUES (...)         |
+    | db.Save(&obj)            | Met à jour ou insère une ligne en fonction de l'ID| UPDATE table SET ... WHERE id = ...         |
+    | db.First(&obj, id)       | Récupère la première ligne correspondante.       | SELECT * FROM table WHERE id = ... LIMIT 1  |
+    | db.Take(&obj, condition) | Récupère une ligne aléatoire correspondante.     | SELECT * FROM table WHERE ... LIMIT 1       |
+    | db.Find(&objs)           | Récupère plusieurs lignes correspondantes.       | SELECT * FROM table WHERE ...               |
+    | db.Where(condition).Find(&objs)| Récupère avec conditions.              | SELECT * FROM table WHERE ...               |
+    | db.Limit(n).Find(&objs)  | Limite le nombre de résultats.                   | SELECT * FROM table LIMIT n                 |
+    | db.Offset(n).Find(&objs) | Décale les résultats.                            | SELECT * FROM table OFFSET n                |
+    | db.Delete(&obj)          | Supprime une ligne en fonction de l'ID.          | DELETE FROM table WHERE id = ...            |
+    | db.Unscoped().Delete(&obj)| Supprime définitivement une ligne (soft delete).| DELETE FROM table WHERE id = ...            |
+    | db.Model(&obj).Update(...) | Met à jour un champ spécifique.             | UPDATE table SET field = ... WHERE id = ... |
+    | db.Model(&obj).Updates(...) | Met à jour plusieurs champs.                  | UPDATE table SET ... WHERE id = ...         |
+    | db.Count(&count)         | Compte le nombre de lignes correspondantes.      | SELECT COUNT(*) FROM table WHERE ...        |
+    | db.Order("field ASC/DESC").Find(&objs)| Trie les résultats.              | SELECT * FROM table ORDER BY field ASC/DESC |
+    | db.Preload("Relation").Find(&objs)| Charge les relations associées.       | SELECT * FROM table JOIN ...                |
+    | db.Raw(sql).Scan(&result)| Exécute une requête SQL brute.                   | Requête SQL personnalisée                   |
+    +--------------------------+--------------------------------------------------+---------------------------------------------+
+
+    -Visualilser la base de données depuis le terminal;
+        Vu que notre driver a utiliser l'outils sqlite on le fera ici avec notre outil sqlite3.
+       +-----------------------------+----------------------------------------------------+
+        | Commande                   | Description                                        |
+        +-----------------------------+----------------------------------------------------+
+        | sqlite3 ecommerce.db        | Ouvre la base de données dans l'interface SQLite.   |
+        | .tables                    | Liste toutes les tables dans la base de données.   |
+        | PRAGMA table_info(table)    | Affiche la structure d'une table.                  |
+        | SELECT * FROM table;        | Affiche toutes les données d'une table.            |
+        | .mode column               | Active le mode de sortie en colonnes.              |
+        | .headers on                | Affiche les noms des colonnes dans les résultats.  |
+        | .schema table              | Affiche la définition SQL de la table spécifiée.   |
+        | .quit                      | Quitte l'interface SQLite.                         |
+        +-----------------------------+----------------------------------------------------+
+
+        Resusme des commandes.
+
+    -Creation d'un groupe de route dans gin:
+        // Création d'un groupe de routes avec le préfixe "/api/v1"
+        apiV1 := r.Group("/api/v1")
+        {
+            // Ajout des routes pour les utilisateurs dans ce groupe
+            apiV1.GET("/users/:id", userHandler.GetUser)
+            apiV1.POST("/users", userHandler.CreateUser)
+            apiV1.POST("/login", userHandler.LoginUser)
+        }
+
+    
 }
 
 

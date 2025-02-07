@@ -2,6 +2,7 @@ package user
 
 import (
 	"ecommerce-api/models"
+	"errors"
 
 	"gorm.io/gorm"
 )
@@ -25,4 +26,17 @@ func (s *Store) GetUserByID(id uint) (*models.User, error) { // pourquoi on util
 
 func (s *Store) CreateUser(user *models.User) error {
 	return s.db.Create(user).Error
+}
+
+func (s *Store) GetUserByEmail(email string) (*models.User, error) {
+	// Recherche l'utilisateur par email
+	var user models.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // Ou renvoie une erreur personnalisée si préféré
+		}
+		return nil, err
+	}
+
+	return &user, nil
 }

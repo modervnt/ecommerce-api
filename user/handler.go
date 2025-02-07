@@ -1,7 +1,9 @@
 package user
 
 import (
+	"ecommerce-api/auth"
 	"ecommerce-api/models"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -39,6 +41,11 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
+	hashedPassword, err := auth.HashPassword(newUser.Password)
+	if err != nil {
+		fmt.Errorf("error of hashing %v", err)
+	}
+	newUser.Password = hashedPassword
 
 	if err := h.Store.CreateUser(&newUser); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
@@ -46,4 +53,28 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, newUser)
+}
+
+func (h *Handler) LoginUser(c *gin.Context) {
+
+	var loginData models.LoginRequest
+	if err := c.ShouldBindJSON(&loginData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+	user, err := h.Store.GetUserByEmail(loginData.Email)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+	// compare the password
+
+	if !auth.ComparePassWord(user.Password, []byte(loginData.Password)) {
+		c.JSON(http.StatusOK, gin.H{"connection": "Invalid credentials"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful"})
+
+	//then add jwt authentification
 }
