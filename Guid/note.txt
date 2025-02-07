@@ -1,0 +1,237 @@
+Bonjour etbienvenu sur mon tuto ou nous allons apprendre ensemble a cree une API e-commerce grace a go et gin-gonic
+
+1er etape:
+    -Cree un dossier pour notre API.
+    -Cree un repository et faire un push.
+        ?Comment faire ca?
+            -A la racine du projet il faut initialiser un nouveau repository: 
+            cmd : git init
+
+            -Verfifiez que le repository a bien ete initialiser:
+            cmd : git status
+            re:On branch master
+
+            No commits yet
+
+            Untracked files:
+            (use "git add <file>..." to include in what will be committed)
+            note.txt
+
+            nothing added to commit but untracked files present (use "git add" to track)
+
+            -Ajouter tous les fichiers au repository
+            cmd : git add . 
+
+            -Cree un premier commit pour enregistrer les fichiers
+            cmd: git commit -m "Initial commit"
+
+            -Aller sur Github et cree un repository 
+
+            -Lier le repository local a celui sur Github
+            cmd : git remote  add origin https://github.com/username/ecommerce-api.git
+
+            -Pousser les fichiers sur github
+            cmd: git branch -M main
+            cmd: git push -u origin main
+
+    -NB: maintenant le plus important est de maintenir son repository
+        A chaque fois qu'on modife le code il faut :
+            -Ajouter les nouvelles modifications
+            cmd: git add .
+
+            -Cree un commit avec un message descriptif:
+            git commit -m "Descpition de la modification effectue"
+
+            -Pousser les changements sur github:
+            cmd : git push
+
+    -initialiser le projet 
+    cmd: go mod init ecommerce-api
+    -installer les dependances necessaire
+        -pour installer une dependance il faut faire:
+        cmd: go get -u liensVersLaDependance (le -u est optionnel)
+    
+    -Cree un fichier main.go dans la racine du repertoire et tester Gin-gonic.
+        -code pour tester :
+        	r := gin.Default()
+	        r.GET("/ping", func(c *gin.Context) {
+		    c.JSON(200, gin.H{
+			"message": "pong",
+		        })
+	        })
+	        r.Run(":8080")
+
+        Ce code retourne le message:pong quand on le test sur la route http://localhost:8080/ping
+
+    -Lis la documentation de GORM pour comprendre comment définir des modèles et des relations
+        -Resume:
+            GORM est un outils qui facilites les migrations et la communication avec les bases de donnees en golang.
+        A chaque fois que nous utiliserons GORM je vous expliquerai le travail qui a ete fait.
+    -Attaquons nous au User:
+        -Creation de type User
+            Dans un model Go normal on aurait fait:
+           type User struct {
+	        ID        int       `json:"id"`
+            FirstName string    `json:"firstName"`
+            LastName  string    `json:"lastName"`
+            Email     string    `json:"email"`
+            Password  string    `json:"-"`
+            CreatedAt time.Time `json:"createdAt"`
+            }
+
+            Mais grace a GROM on ecrit comme ca:
+            type User struct {
+            gorm.Model
+            FirstName string `json:"firstName" gorm:"not null"`
+            LastName  string `json:"lastName" gorm:"not null"`
+            Email     string `json:"email" gorm:"not null; unique"`
+            Password  string `json:"password" gorm:"not null"`
+            }
+            Gorm rajoute automatiquement les champs :
+            type Model struct {
+            ID        uint `gorm:"primaryKey"`
+            CreatedAt time.Time
+            UpdatedAt time.Time
+            DeletedAt gorm.DeletedAt `gorm:"index"`
+            }
+    -Les routes pour la creation et la connexion d'un user des users:
+        -J'ai implemente une interface qui s'appelle UserStore dans le types.go
+            --Une interface est une collection de fonction. C'est comme une structure de donnee mais uniquement pour stocker des fonctions
+        -Je cree un dossier User qui doit contenir store.go et routes.go. Le fichier concerne toutes les fonctions qui gere la connexion avec la base de donnee 
+        et le fichier routes.go concerne les routages
+        C'etait l'idee de base puis une IA m'a propose cette structure qui semble beaucoup plus logique
+
+        ecommerce-api/
+        ├── main.go
+        ├── models/
+        │   ├── user.go
+        │   └── product.go
+        ├── user/
+        │   ├── store.go       # Logique de la base de données
+        │   ├── handler.go     # Handlers pour les routes
+        │   └── routes.go      # Définition des routes
+        ├── db/
+        │   └── db.go          # Initialisation de la connexion DB
+        └── go.mod
+        Dans ce cas, le but de mon main.go serait de  :
+            *initialiser l'application Gin
+            *Charger les routes depuisa differents modules de mon app
+
+        -Un exemple d'implementation serait donc le suivant --> (voir code)
+            -Code Explique:
+                user/store.go
+                type Store struct {
+                    db *gorm.DB
+                } // pourquoi on a ca si on a un package DB deja existant?
+
+                func (s *Store) GetUserByID(id uint) (*models.User, error) { 
+
+                    //Qu :pourquoi on utilise un pointeur (*models.User) dans GetUserByID?
+                    /*Re :En go lorsqu'on retourne uns structure par valeur, une copie de Cette structure est cree et renvoye.On utilise donc
+                    un pointeur pour eviter les copies initules en travaillant directement sur l'addresse de la memoire. Cele rend optimal notre
+                    codeet c'est tres important surtout quand nous aurons besoin de travailler avec un nombre important de donnees*/
+
+                    var user models.User
+                    if err := s.db.First(&user, id).Error; err != nil {
+                        //Qu :pourquoi nous utilisons First dans GetUserByID ?
+                        /*Re :La methode First de Gorm recherche la premiere entree qui correspond aux criteres specifies.
+                        NB:il existe d'autre method pour effectuer des recherches avec Gorm (find, Take...)*/
+                        return nil, err
+                    }
+                    return &user, nil
+
+                }
+
+                func (s *Store) CreateUser(user *models.User) error {
+                    return s.db.Create(user).Error
+                }
+
+                /user/handler.go
+                type Handler struct {
+                    Store *Store 
+                }
+                /*Le store vient du fichier store.go et est passe au handler lors de sa creation. Le handler est un structure  qui encapsule toutes les dependances
+                necessaires pour traiter  les requetes  liees a une entite specifique. Par exemple vu qu'on a declarer une structure handler, on peut ainsi faire
+                cette instruction "user, err := h.Store.GetUserByID(uint(userId)) " dans la suite de notre code*/
+
+                func (h *Handler) GetUser(c *gin.Context) { 
+                    // qu'est ce que Gin.context?
+                    /*Le gin.Context  est un objet fourni par gin-gonic qui encapsule toutes les informations relatives a une requete HTTp et sa reponse.
+                        Il permet de :
+                            *recuperer les parametres de la requete;
+                            *Ecrire une reponse HTTP (statut, header, corps)
+                            *Gerer les erreurs
+                            *Acceder aux middlewares ou aux données partagees.
+                        */
+                    id := c.Param("id")
+                    userId, err := strconv.ParseUint(id, 10, 64)
+                    if err != nil {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "User not found"})
+                        return
+                    }
+
+                    user, err := h.Store.GetUserByID(uint(userId))
+                    if err != nil {
+                        c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+                        return
+                    }
+
+                    c.JSON(http.StatusOK, user)
+                }
+
+                func (h *Handler) CreateUser(c *gin.Context) {
+                    var newUser models.User
+                    if err := c.ShouldBindJSON(&newUser); err != nil {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+                        return
+                    }
+
+                    if err := h.Store.CreateUser(&newUser); err != nil {
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+                        return
+                    }
+
+                    c.JSON(http.StatusCreated, newUser)
+                }
+                //ou sont le retour dans ces fonctions?
+                /*Dans Gin-gonic, les Handlers(func(c *gin.Context)) ne retournent rien(void). Ils agissent  directement  sur l'objet gin.Context pour 
+                envoyer une reponse HTTP*/
+
+                //routes.go
+                func SetupRoutes(r *gin.Engine, handler *Handler) {
+                    r.GET("/users/:id", handler.GetUser)
+                    r.POST("/users", handler.CreateUser)
+                }
+                /*gin.Engine est le coeur  de Gin-Gonic. Il combine  le role de serveur HTTP  et de routeur*/
+
+                db.go (Initialisation de connexion a la database)
+                var db *gorm.DB
+
+            func InitDB() {
+                var err error
+                db, err = gorm.Open(sqlite.Open("ecommerce.db"), &gorm.Config{})
+                if err != nil {
+                    fmt.Println("Erreur lors de la connexion a la base de donnees :", err)
+                    return
+                }
+
+                //Migration automatique des tables
+                db.AutoMigrate(&models.User{})
+            }
+
+            La fonction main
+            func main() {
+
+	        db.InitDB()
+	        userStore := user.NewStore(db.DB)
+
+	        r := gin.Default()
+
+	        user.SetupRoutes(r, user.NewHandler(userStore))
+	        r.Run(":8080")
+            Elle cree une nouvelles instances de Store (db) relie la route qui va avec et la fonction qui la gere. Grace a gorm la 
+            connexion avec les databases sont faites automatiquement
+}
+
+
+

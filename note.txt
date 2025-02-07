@@ -1,4 +1,0 @@
-Bonjour etbienvenu sur mon tuto ou nous allons apprendre ensemble a cree une API e-commerce grace a go et gin-gonic
-
-1er etape:
-    Nous allons cree un document pour notre API. Et ensuite regarder la suite des evenements ensemble
