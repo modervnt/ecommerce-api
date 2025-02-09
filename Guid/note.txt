@@ -303,8 +303,133 @@ Bonjour etbienvenu sur mon tuto ou nous allons apprendre ensemble a cree une API
             apiV1.POST("/login", userHandler.LoginUser)
         }
 
-    
-}
+            // Création d'un groupe de routes avec le préfixe "/api/v1"
+            apiV1 := r.Group("/api/v1")
+            {
+            // Configuration des routes pour les utilisateurs
+            user.SetupRoutes(apiV1, userHandler)
 
+            // Configuration des routes pour les produits
+            product.SetupRoutes(apiV1, productHandler)
+            }
+
+    -COMMENT ECRIRE UNE REQUTE GET: 
+        -http://localhost:8080/users/1 : cette requete permet de recuperer le premier utilisateur.
+
+    -STRATEGIE DE DEBOGAGE:
+        -Ajouter des logs pour verfier si les erreurs de requetes : fmt.Println("ID capturé :", id)
+
+    -SUPPRESSION LOGIQUE ET SUPPRESSION physique
+        -La suppresion logique ne supprime pas l'enregitrement. En realite elle change le status de l'enregistrement a la colonne 
+        DeletedAt.
+        -Pour supprimer definitivement il faut faire :
+        cmd:s.db.Unscoped().Delete(&models.Product{}, id)
+
+    -HOW TO MAKE AN UPDATE?
+        -Avec une map[string][interface]
+
+        *code du handler
+        func (h *Handler) UpdateProduct(c *gin.Context) {
+            // Récupère l'ID depuis l'URL
+            id := c.Param("id")
+            NumId, err := strconv.Atoi(id)
+            if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+                return
+            }
+
+            // Récupère les données JSON dans une map
+            var data map[string]interface{}
+            if err := c.ShouldBindJSON(&data); err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+                return
+            }
+
+            // Mets à jour partiellement le produit en utilisant GORM
+            if err := h.Store.UpdateProduct(NumId, data); err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
+                return
+            }
+
+            c.JSON(http.StatusOK, gin.H{"message": "Product updated successfully"})
+        }
+        }
+
+        *code du store
+        func (s *Store) UpdateProduct(id int, data map[string]interface{}) error {
+            // Mets à jour uniquement les champs spécifiés dans la map
+            return s.db.Model(&models.Product{}).Where("id = ?", id).Updates(data).Error
+        }
+
+        -Avec un model de structure:
+            *definition du model de structure partiel:
+                type UpdateProductRequest struct {
+                    Name        *string `json:"name" binding:"omitempty,min=1,max=50"`
+                    Description *string `json:"description" binding:"omitempty,max=255"`
+                    Image       *string `json:"image" binding:"omitempty,url,max=150"`
+                    Quantity    *uint   `json:"quantity" binding:"omitempty,gte=1"`
+                }
+
+            *Code du handler
+                func (h *Handler) UpdateProduct(c *gin.Context) {
+                    // Récupère l'ID depuis l'URL
+                    id := c.Param("id")
+                    NumId, err := strconv.Atoi(id)
+                    if err != nil {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+                        return
+                    }
+
+                    // Récupère les données JSON dans un modèle struct
+                    var req UpdateProductRequest
+                    if err := c.ShouldBindJSON(&req); err != nil {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+                        return
+                    }
+
+                    // Mets à jour partiellement le produit en utilisant GORM
+                    if err := h.Store.UpdateProduct(NumId, req); err != nil {
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
+                        return
+                    }
+
+                    c.JSON(http.StatusOK, gin.H{"message": "Product updated successfully"})
+                }
+
+            *Code du store:
+            func (s *Store) UpdateProduct(id int, req UpdateProductRequest) error {
+                // Mets à jour uniquement les champs non nuls dans la requête
+                return s.db.Model(&models.Product{}).Where("id = ?", id).Updates(req).Error
+            }
+            Je pense que ces fonctions sont correctes. le problemes venait du fait que j'avais utiliser un soft delete. Ce qui change la status
+            de la colonne delete dans ma base de donnees mais ne supprime pas. Tres pratique.
+
+            -LES DEPENDANCES AVEC GORM:
+                Dans notre tutoriel On veut cree une table orders pour stocker tout ce qui est relative aux ordres passe a l'utilisateur.
+                type Order struct {
+                    gorm.Model
+                    UserID  uint    `json:"user_id" gorm:"not null"`
+                    Total   float64 `json:"total" gorm:"not null"`
+                    Status  string  `json:"status" gorm:"type:ENUM('pending', 'shipped', 'delivered', 'cancelled'); default:'pending'"`
+                    Address string  `json:"address" gorm:"not null; size:255"`
+                }
+                Voici le model de notre table Order. Le simple fait qu'on a le champ UserID va faire cree a gorm la dependance entre la table
+                order et la table User. On pouvait egalament rajouter un champ user si on voulais Preload les datas.
+                Ici dans le chamo User on ajoute un champ order comme ce ci :
+                type User struct {
+                    gorm.Model
+                    FirstName string  `json:"firstName" gorm:"not null; size:50"`
+                    LastName  string  `json:"lastName" gorm:"not null;size:50"`
+                    Email     string  `json:"email" gorm:"not null; unique;type:varchar(100)"`
+                    Password  string  `json:"password" gorm:"not null;size:100"`
+                    Orders    []Order `json:"-" gorm:"foreignKey:UserID; constraint:OnUpdate:CASCADE;OnDelete:SET NULL;"`
+                }
+                Vu que ma table user existait deja ca veut dire que lors de la migration, il y aura juste un nouveau champ qui sera ajoute.
+
+
+                -Question sur les handler les parametrage etc... 
+
+            NB: sqlite n'admet pas de types enum. A la place on peut cree un champ text mais avec des restrictions. C'est a dire un champ qui ne prend
+            que les valeurs que l'on avait prevu mettre dans l'enum
 
 
